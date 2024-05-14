@@ -6,52 +6,55 @@ import (
 )
 
 type routerGroup struct {
-	name           string
-	handlerFuncMap map[string]handlerFunc
+	name string
 
 	/**
-	key: http method
-	value: url
+	key1: name
+	key2: method
+	value: func
 	*/
-	handlerMethodMap map[string][]string
+	handlerFuncMap map[string]map[string]handlerFunc
 }
 
 func (r *router) Group(name string) *routerGroup {
 	routerGroup := &routerGroup{
-		name:             name,
-		handlerFuncMap:   make(map[string]handlerFunc),
-		handlerMethodMap: make(map[string][]string),
+		name:           name,
+		handlerFuncMap: make(map[string]map[string]handlerFunc),
 	}
 
 	r.routerGroups = append(r.routerGroups, routerGroup)
 	return routerGroup
 }
 
-type handlerFunc func(w http.ResponseWriter, r *http.Request)
+type handlerFunc func(ctx *Context)
 
 type router struct {
 	routerGroups []*routerGroup
 }
 
-func (r *routerGroup) Add(name string, handlerFunc handlerFunc) {
-	r.handlerFuncMap[name] = handlerFunc
-}
-
-// Any 任何请求方式
-func (r *routerGroup) Any(name string, handlerFunc handlerFunc) {
-	r.handlerFuncMap[name] = handlerFunc
-	r.handlerMethodMap["ANY"] = append(r.handlerMethodMap["ANY"], name)
+func (r *routerGroup) handle(name string, method string, _handlerFunc handlerFunc) {
+	_, ok := r.handlerFuncMap[name]
+	if !ok {
+		r.handlerFuncMap[name] = make(map[string]handlerFunc)
+	}
+	r.handlerFuncMap[name][method] = _handlerFunc
 }
 
 // Get get请求方式
-func (r *routerGroup) Get(name string, handlerFunc handlerFunc) {
-	r.handlerFuncMap[name] = handlerFunc
-	r.handlerMethodMap[http.MethodGet] = append(r.handlerMethodMap[http.MethodGet], name)
+func (r *routerGroup) Get(name string, _handlerFunc handlerFunc) {
+	r.handle(name, http.MethodGet, _handlerFunc)
 }
 
-func (r *routerGroup) Post(name string, handlerFunc handlerFunc) {
-	r.handlerFuncMap[name] = handlerFunc
-	r.handlerMethodMap[http.MethodPost] = append(r.handlerMethodMap[http.MethodPost], name)
+func (r *routerGroup) Post(name string, _handlerFunc handlerFunc) {
+	r.handle(name, http.MethodPost, _handlerFunc)
+}
+
+func (r *routerGroup) Put(name string, _handlerFunc handlerFunc) {
+	r.handle(name, http.MethodPut, _handlerFunc)
+}
+
+func (r *routerGroup) Delete(name string, _handlerFunc handlerFunc) {
+	r.handle(name, http.MethodDelete, _handlerFunc)
 }
 
 type Engine struct {
@@ -68,38 +71,31 @@ func New() *Engine {
 
 func (e *Engine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	method := r.Method
-	for _, group := range e.routerGroups {
-		for name, methodHandler := range group.handlerFuncMap {
-			url := "/" + group.name + name
-			if url == r.RequestURI {
-				routers, ok := group.handlerMethodMap["ANY"]
-				if ok {
-					for _, routerName := range routers {
-						if routerName == name {
-							methodHandler(w, r)
-							return
+	for _, routerGroup := range e.routerGroups {
+		for name, m := range routerGroup.handlerFuncMap {
+			uri := "/" + routerGroup.name + name
+			if uri == r.RequestURI {
+				// 找到了请求方式对应的url
+				for _method, handler := range m {
+					if _method == method {
+						ctx := &Context{
+							W: w,
+							R: r,
 						}
-					}
-				}
-
-				// 没有匹配到的话
-				routers, ok = group.handlerMethodMap[method]
-				if !ok {
-					w.WriteHeader(http.StatusMethodNotAllowed)
-					fmt.Fprintf(w, "%s %s not allowd \n", url, method)
-				}
-				for _, routerName := range routers {
-					if routerName == name {
-						methodHandler(w, r)
+						handler(ctx)
 						return
 					}
 				}
+				// url匹配了但是方法不匹配
+				w.WriteHeader(http.StatusMethodNotAllowed)
+				fmt.Fprintf(w, "%s %s not allowd", uri, method)
+				return
 			}
 		}
 	}
-	// 都没匹配上 没有相应的方法
 	w.WriteHeader(http.StatusNotFound)
-	fmt.Fprintf(w, "%s not found\n", r.RequestURI)
+	fmt.Fprintf(w, "%s NOT FOUND", r.URL.Path)
+	return
 }
 
 func (e *Engine) Run() {
