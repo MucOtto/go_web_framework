@@ -18,8 +18,9 @@ func (t *treeNode) Put(path string) {
 		if index == 0 {
 			continue
 		}
+		children := t.children
 		isMatch := false
-		for _, node := range t.children {
+		for _, node := range children {
 			if node.val == str {
 				isMatch = true
 				t = node
@@ -31,7 +32,7 @@ func (t *treeNode) Put(path string) {
 				val:      str,
 				children: make([]*treeNode, 0),
 			}
-			t.children = append(t.children, node)
+			t.children = append(children, node)
 			t = node
 		}
 	}

@@ -14,12 +14,18 @@ type routerGroup struct {
 	value: func
 	*/
 	handlerFuncMap map[string]map[string]handlerFunc
+	*treeNode
 }
 
 func (r *router) Group(name string) *routerGroup {
 	routerGroup := &routerGroup{
 		name:           name,
 		handlerFuncMap: make(map[string]map[string]handlerFunc),
+		treeNode: &treeNode{
+			val:        "/",
+			children:   make([]*treeNode, 0),
+			routerName: "/",
+		},
 	}
 
 	r.routerGroups = append(r.routerGroups, routerGroup)
@@ -38,6 +44,8 @@ func (r *routerGroup) handle(name string, method string, _handlerFunc handlerFun
 		r.handlerFuncMap[name] = make(map[string]handlerFunc)
 	}
 	r.handlerFuncMap[name][method] = _handlerFunc
+
+	r.treeNode.Put(name)
 }
 
 // Get get请求方式
@@ -71,27 +79,23 @@ func New() *Engine {
 
 func (e *Engine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	method := r.Method
-	for _, routerGroup := range e.routerGroups {
-		for name, m := range routerGroup.handlerFuncMap {
-			uri := "/" + routerGroup.name + name
-			if uri == r.RequestURI {
-				// 找到了请求方式对应的url
-				for _method, handler := range m {
-					if _method == method {
-						ctx := &Context{
-							W: w,
-							R: r,
-						}
-						handler(ctx)
-						return
-					}
-				}
-				// url匹配了但是方法不匹配
+	for _, group := range e.routerGroups {
+		routerName := SubStringLast(r.RequestURI, "/"+group.name)
+		node := group.treeNode.Get(routerName)
+		if node != nil {
+			handler, ok := group.handlerFuncMap[node.routerName][method]
+			if !ok {
 				w.WriteHeader(http.StatusMethodNotAllowed)
-				fmt.Fprintf(w, "%s %s not allowd", uri, method)
+				fmt.Fprintf(w, "%s %s NOT ALLOWD", r.RequestURI, method)
 				return
 			}
+			handler(&Context{
+				W: w,
+				R: r,
+			})
+			return
 		}
+
 	}
 	w.WriteHeader(http.StatusNotFound)
 	fmt.Fprintf(w, "%s NOT FOUND", r.URL.Path)
