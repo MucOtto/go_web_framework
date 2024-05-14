@@ -103,12 +103,6 @@ func (e *Engine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (e *Engine) Run() {
-	//// 路由和功能的映射
-	//for _, group := range e.routerGroups {
-	//	for key, value := range group.handlerFuncMap {
-	//		http.HandleFunc("/"+group.name+key, value)
-	//	}
-	//}
 
 	http.Handle("/", e)
 	err := http.ListenAndServe(":8080", nil)
