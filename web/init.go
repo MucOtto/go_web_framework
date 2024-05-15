@@ -10,20 +10,29 @@ type HandlerFunc func(ctx *Context)
 type MiddlewareFunc func(handlerFunc HandlerFunc) HandlerFunc
 
 type routerGroup struct {
-	name           string
-	handlerFuncMap map[string]map[string]HandlerFunc
-	treeNode       *treeNode
-	Middlewares    []MiddlewareFunc
+	name              string
+	handlerFuncMap    map[string]map[string]HandlerFunc
+	middlewareFuncMap map[string]map[string][]MiddlewareFunc // 中间件和路由的映射
+	treeNode          *treeNode
+	Middlewares       []MiddlewareFunc
 }
 
 func (g *routerGroup) MiddlewareHandle(middlewareFunc ...MiddlewareFunc) {
 	g.Middlewares = append(g.Middlewares, middlewareFunc...)
 }
 
-func (g *routerGroup) MethodHandle(handlerFunc HandlerFunc, ctx *Context) {
-	// 前置中间件
+func (g *routerGroup) MethodHandle(name string, method string, handlerFunc HandlerFunc, ctx *Context) {
+	// 所有方法适用的中间件
 	if len(g.Middlewares) > 0 {
 		for _, Middleware := range g.Middlewares {
+			handlerFunc = Middleware(handlerFunc)
+		}
+	}
+
+	// 各自路由对应的中间件
+	middlewareFuncs, ok := g.middlewareFuncMap[name][method]
+	if ok && len(middlewareFuncs) > 0 {
+		for _, Middleware := range middlewareFuncs {
 			handlerFunc = Middleware(handlerFunc)
 		}
 	}
@@ -31,31 +40,33 @@ func (g *routerGroup) MethodHandle(handlerFunc HandlerFunc, ctx *Context) {
 	handlerFunc(ctx)
 }
 
-func (r *routerGroup) handle(name string, method string, _handlerFunc HandlerFunc) {
+func (r *routerGroup) handle(name string, method string, _handlerFunc HandlerFunc, middlewares ...MiddlewareFunc) {
 	_, ok := r.handlerFuncMap[name]
 	if !ok {
 		r.handlerFuncMap[name] = make(map[string]HandlerFunc)
+		r.middlewareFuncMap[name] = make(map[string][]MiddlewareFunc)
 	}
 	r.handlerFuncMap[name][method] = _handlerFunc
+	r.middlewareFuncMap[name][method] = append(r.middlewareFuncMap[name][method], middlewares...)
 
 	r.treeNode.Put(name)
 }
 
 // Get get请求方式
-func (r *routerGroup) Get(name string, _handlerFunc HandlerFunc) {
-	r.handle(name, http.MethodGet, _handlerFunc)
+func (r *routerGroup) Get(name string, _handlerFunc HandlerFunc, middlewares ...MiddlewareFunc) {
+	r.handle(name, http.MethodGet, _handlerFunc, middlewares...)
 }
 
-func (r *routerGroup) Post(name string, _handlerFunc HandlerFunc) {
-	r.handle(name, http.MethodPost, _handlerFunc)
+func (r *routerGroup) Post(name string, _handlerFunc HandlerFunc, middlewares ...MiddlewareFunc) {
+	r.handle(name, http.MethodPost, _handlerFunc, middlewares...)
 }
 
-func (r *routerGroup) Put(name string, _handlerFunc HandlerFunc) {
-	r.handle(name, http.MethodPut, _handlerFunc)
+func (r *routerGroup) Put(name string, _handlerFunc HandlerFunc, middlewares ...MiddlewareFunc) {
+	r.handle(name, http.MethodPut, _handlerFunc, middlewares...)
 }
 
-func (r *routerGroup) Delete(name string, _handlerFunc HandlerFunc) {
-	r.handle(name, http.MethodDelete, _handlerFunc)
+func (r *routerGroup) Delete(name string, _handlerFunc HandlerFunc, middlewares ...MiddlewareFunc) {
+	r.handle(name, http.MethodDelete, _handlerFunc, middlewares...)
 }
 
 type router struct {
@@ -64,8 +75,9 @@ type router struct {
 
 func (r *router) Group(name string) *routerGroup {
 	routerGroup := &routerGroup{
-		name:           name,
-		handlerFuncMap: make(map[string]map[string]HandlerFunc),
+		name:              name,
+		handlerFuncMap:    make(map[string]map[string]HandlerFunc),
+		middlewareFuncMap: make(map[string]map[string][]MiddlewareFunc),
 		treeNode: &treeNode{
 			val:        "/",
 			children:   make([]*treeNode, 0),
@@ -106,7 +118,7 @@ func (e *Engine) HTTPRequestHandler(w http.ResponseWriter, r *http.Request) {
 				W: w,
 				R: r,
 			}
-			group.MethodHandle(handler, ctx)
+			group.MethodHandle(node.routerName, method, handler, ctx)
 
 			return
 		}
