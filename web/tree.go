@@ -8,6 +8,7 @@ type treeNode struct {
 	val        string
 	children   []*treeNode
 	routerName string
+	isEnd      bool
 }
 
 func (t *treeNode) Put(path string) {
@@ -28,9 +29,14 @@ func (t *treeNode) Put(path string) {
 			}
 		}
 		if !isMatch {
+			isEnd := false
+			if index == len(strs)-1 {
+				isEnd = true
+			}
 			node := &treeNode{
 				val:      str,
 				children: make([]*treeNode, 0),
+				isEnd:    isEnd,
 			}
 			t.children = append(children, node)
 			t = node
@@ -68,6 +74,8 @@ func (t *treeNode) Get(path string) *treeNode {
 				// /user/get/userInfo
 				// /user/aa/bb
 				if node.val == "**" {
+					routerName += "/" + node.val
+					node.routerName = routerName
 					return node
 				}
 			}
