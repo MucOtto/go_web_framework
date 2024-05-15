@@ -5,43 +5,48 @@ import (
 	"net/http"
 )
 
-type routerGroup struct {
-	name string
+type HandlerFunc func(ctx *Context)
 
-	/**
-	key1: name
-	key2: method
-	value: func
-	*/
-	handlerFuncMap map[string]map[string]handlerFunc
-	*treeNode
+type MiddlewareFunc func(handlerFunc HandlerFunc) HandlerFunc
+
+type routerGroup struct {
+	name            string
+	handlerFuncMap  map[string]map[string]HandlerFunc
+	treeNode        *treeNode
+	preMiddlewares  []MiddlewareFunc
+	postMiddlewares []MiddlewareFunc
 }
 
-func (r *router) Group(name string) *routerGroup {
-	routerGroup := &routerGroup{
-		name:           name,
-		handlerFuncMap: make(map[string]map[string]handlerFunc),
-		treeNode: &treeNode{
-			val:        "/",
-			children:   make([]*treeNode, 0),
-			routerName: "/",
-		},
+func (g *routerGroup) PreHandle(middlewareFunc ...MiddlewareFunc) {
+	g.preMiddlewares = append(g.preMiddlewares, middlewareFunc...)
+}
+
+func (g *routerGroup) PostHandle(middlewareFunc ...MiddlewareFunc) {
+	g.postMiddlewares = append(g.postMiddlewares, middlewareFunc...)
+}
+
+func (g *routerGroup) MethodHandle(handlerFunc HandlerFunc, ctx *Context) {
+	// 前置中间件
+	if len(g.preMiddlewares) > 0 {
+		for _, preMiddleware := range g.preMiddlewares {
+			handlerFunc = preMiddleware(handlerFunc)
+		}
 	}
 
-	r.routerGroups = append(r.routerGroups, routerGroup)
-	return routerGroup
+	handlerFunc(ctx)
+
+	// 后置中间件
+	if len(g.postMiddlewares) > 0 {
+		for _, postMiddleware := range g.postMiddlewares {
+			handlerFunc = postMiddleware(handlerFunc)
+		}
+	}
 }
 
-type handlerFunc func(ctx *Context)
-
-type router struct {
-	routerGroups []*routerGroup
-}
-
-func (r *routerGroup) handle(name string, method string, _handlerFunc handlerFunc) {
+func (r *routerGroup) handle(name string, method string, _handlerFunc HandlerFunc) {
 	_, ok := r.handlerFuncMap[name]
 	if !ok {
-		r.handlerFuncMap[name] = make(map[string]handlerFunc)
+		r.handlerFuncMap[name] = make(map[string]HandlerFunc)
 	}
 	r.handlerFuncMap[name][method] = _handlerFunc
 
@@ -49,20 +54,41 @@ func (r *routerGroup) handle(name string, method string, _handlerFunc handlerFun
 }
 
 // Get get请求方式
-func (r *routerGroup) Get(name string, _handlerFunc handlerFunc) {
+func (r *routerGroup) Get(name string, _handlerFunc HandlerFunc) {
 	r.handle(name, http.MethodGet, _handlerFunc)
 }
 
-func (r *routerGroup) Post(name string, _handlerFunc handlerFunc) {
+func (r *routerGroup) Post(name string, _handlerFunc HandlerFunc) {
 	r.handle(name, http.MethodPost, _handlerFunc)
 }
 
-func (r *routerGroup) Put(name string, _handlerFunc handlerFunc) {
+func (r *routerGroup) Put(name string, _handlerFunc HandlerFunc) {
 	r.handle(name, http.MethodPut, _handlerFunc)
 }
 
-func (r *routerGroup) Delete(name string, _handlerFunc handlerFunc) {
+func (r *routerGroup) Delete(name string, _handlerFunc HandlerFunc) {
 	r.handle(name, http.MethodDelete, _handlerFunc)
+}
+
+type router struct {
+	routerGroups []*routerGroup
+}
+
+func (r *router) Group(name string) *routerGroup {
+	routerGroup := &routerGroup{
+		name:           name,
+		handlerFuncMap: make(map[string]map[string]HandlerFunc),
+		treeNode: &treeNode{
+			val:        "/",
+			children:   make([]*treeNode, 0),
+			routerName: "/",
+		},
+		preMiddlewares:  make([]MiddlewareFunc, 0),
+		postMiddlewares: make([]MiddlewareFunc, 0),
+	}
+
+	r.routerGroups = append(r.routerGroups, routerGroup)
+	return routerGroup
 }
 
 type Engine struct {
@@ -77,7 +103,7 @@ func New() *Engine {
 	}
 }
 
-func (e *Engine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (e *Engine) HTTPRequestHandler(w http.ResponseWriter, r *http.Request) {
 	method := r.Method
 	for _, group := range e.routerGroups {
 		routerName := SubStringLast(r.RequestURI, "/"+group.name)
@@ -89,10 +115,12 @@ func (e *Engine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				fmt.Fprintf(w, "%s %s NOT ALLOWD", r.RequestURI, method)
 				return
 			}
-			handler(&Context{
+			ctx := &Context{
 				W: w,
 				R: r,
-			})
+			}
+			group.MethodHandle(handler, ctx)
+
 			return
 		}
 
@@ -100,6 +128,10 @@ func (e *Engine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotFound)
 	fmt.Fprintf(w, "%s NOT FOUND", r.URL.Path)
 	return
+}
+
+func (e *Engine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	e.HTTPRequestHandler(w, r)
 }
 
 func (e *Engine) Run() {
