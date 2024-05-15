@@ -10,37 +10,25 @@ type HandlerFunc func(ctx *Context)
 type MiddlewareFunc func(handlerFunc HandlerFunc) HandlerFunc
 
 type routerGroup struct {
-	name            string
-	handlerFuncMap  map[string]map[string]HandlerFunc
-	treeNode        *treeNode
-	preMiddlewares  []MiddlewareFunc
-	postMiddlewares []MiddlewareFunc
+	name           string
+	handlerFuncMap map[string]map[string]HandlerFunc
+	treeNode       *treeNode
+	Middlewares    []MiddlewareFunc
 }
 
-func (g *routerGroup) PreHandle(middlewareFunc ...MiddlewareFunc) {
-	g.preMiddlewares = append(g.preMiddlewares, middlewareFunc...)
-}
-
-func (g *routerGroup) PostHandle(middlewareFunc ...MiddlewareFunc) {
-	g.postMiddlewares = append(g.postMiddlewares, middlewareFunc...)
+func (g *routerGroup) MiddlewareHandle(middlewareFunc ...MiddlewareFunc) {
+	g.Middlewares = append(g.Middlewares, middlewareFunc...)
 }
 
 func (g *routerGroup) MethodHandle(handlerFunc HandlerFunc, ctx *Context) {
 	// 前置中间件
-	if len(g.preMiddlewares) > 0 {
-		for _, preMiddleware := range g.preMiddlewares {
-			handlerFunc = preMiddleware(handlerFunc)
+	if len(g.Middlewares) > 0 {
+		for _, Middleware := range g.Middlewares {
+			handlerFunc = Middleware(handlerFunc)
 		}
 	}
 
 	handlerFunc(ctx)
-
-	// 后置中间件
-	if len(g.postMiddlewares) > 0 {
-		for _, postMiddleware := range g.postMiddlewares {
-			handlerFunc = postMiddleware(handlerFunc)
-		}
-	}
 }
 
 func (r *routerGroup) handle(name string, method string, _handlerFunc HandlerFunc) {
@@ -83,8 +71,7 @@ func (r *router) Group(name string) *routerGroup {
 			children:   make([]*treeNode, 0),
 			routerName: "/",
 		},
-		preMiddlewares:  make([]MiddlewareFunc, 0),
-		postMiddlewares: make([]MiddlewareFunc, 0),
+		Middlewares: make([]MiddlewareFunc, 0),
 	}
 
 	r.routerGroups = append(r.routerGroups, routerGroup)
