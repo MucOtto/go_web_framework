@@ -2,6 +2,8 @@ package web
 
 import (
 	"fmt"
+	"github.com/MucOtto/web/render"
+	"html/template"
 	"net/http"
 )
 
@@ -92,6 +94,8 @@ func (r *router) Group(name string) *routerGroup {
 
 type Engine struct {
 	router
+	funcMap    template.FuncMap
+	HTMLRender *render.HTMLRender
 }
 
 func New() *Engine {
@@ -99,6 +103,17 @@ func New() *Engine {
 		router: router{
 			routerGroups: make([]*routerGroup, 0),
 		},
+	}
+}
+
+func (e *Engine) SetFuncMap(funcMap template.FuncMap) {
+	e.funcMap = funcMap
+}
+
+func (e *Engine) LoadTemplate(pattern string) {
+	t := template.Must(template.New("").Funcs(e.funcMap).ParseGlob(pattern))
+	e.HTMLRender = &render.HTMLRender{
+		Template: t,
 	}
 }
 
