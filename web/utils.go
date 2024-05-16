@@ -1,6 +1,9 @@
 package web
 
-import "strings"
+import (
+	"strings"
+	"unicode"
+)
 
 func SubStringLast(str, substr string) string {
 	index := strings.Index(str, substr)
@@ -9,4 +12,13 @@ func SubStringLast(str, substr string) string {
 	} else {
 		return str[index+len(substr):]
 	}
+}
+
+func isASCII(s string) bool {
+	for i := 0; i < len(s); i++ {
+		if s[i] > unicode.MaxASCII {
+			return false
+		}
+	}
+	return true
 }

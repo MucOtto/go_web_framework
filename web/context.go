@@ -3,6 +3,7 @@ package web
 import (
 	"encoding/json"
 	"net/http"
+	"net/url"
 )
 
 type Context struct {
@@ -39,4 +40,23 @@ func (c *Context) JsonTemplate(data any) error {
 	}
 	_, err = c.W.Write(dataJson)
 	return err
+}
+
+func (c *Context) FileAttachment(filepath, filename string) {
+	if isASCII(filename) {
+		c.W.Header().Set("Content-Disposition", `attachment; filename="`+filename+`"`)
+	} else {
+		c.W.Header().Set("Content-Disposition", `attachment; filename*=UTF-8''`+url.QueryEscape(filename))
+	}
+	http.ServeFile(c.W, c.R, filepath)
+}
+
+func (c *Context) FileFromFS(filepath string, fs http.FileSystem) {
+	defer func(old string) {
+		c.R.URL.Path = old
+	}(c.R.URL.Path)
+
+	c.R.URL.Path = filepath
+
+	http.FileServer(fs).ServeHTTP(c.W, c.R)
 }
