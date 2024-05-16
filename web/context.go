@@ -1,6 +1,7 @@
 package web
 
 import (
+	"encoding/json"
 	"net/http"
 )
 
@@ -27,4 +28,15 @@ func (c *Context) HTMLTemplate(name string, data any) error {
 		return err
 	}
 	return nil
+}
+
+func (c *Context) JsonTemplate(data any) error {
+	c.W.Header().Set("Content-Type", "application/json;charset=uft-8")
+	c.W.WriteHeader(http.StatusOK)
+	dataJson, err := json.Marshal(data)
+	if err != nil {
+		return err
+	}
+	_, err = c.W.Write(dataJson)
+	return err
 }
