@@ -13,16 +13,6 @@ type Context struct {
 	engine *Engine
 }
 
-func (c *Context) HTML(html string) error {
-	c.W.Header().Set("Content-Type", "text/html;charset=uft-8")
-	c.W.WriteHeader(http.StatusOK)
-	_, err := c.W.Write([]byte(html))
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
 func (c *Context) HTMLTemplate(name string, data any) error {
 	err := c.Render(http.StatusOK, &render.HTML{
 		Template: c.engine.HTMLRender.Template,
