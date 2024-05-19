@@ -3,6 +3,7 @@ package web
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/MucOtto/web/render"
 	"net/http"
 	"net/url"
 )
@@ -71,13 +72,15 @@ func (c *Context) Redirect(status int, location string) {
 }
 
 func (c *Context) String(status int, format string, values ...any) (err error) {
-	plainContentType := "text/plain; charset=utf-8"
-	c.W.Header().Set("Content-Type", plainContentType)
-	c.W.WriteHeader(status)
-	if len(values) > 0 {
-		_, err = fmt.Fprintf(c.W, format, values...)
-		return
-	}
-	_, err = c.W.Write(StringToBytes(format))
+	err = c.Render(status, &render.String{
+		Format: format,
+		Data:   values,
+	})
 	return
+}
+
+func (c *Context) Render(code int, r render.Render) error {
+	err := r.Render(c.W)
+	c.W.WriteHeader(code)
+	return err
 }
