@@ -5,6 +5,7 @@ import (
 	"github.com/MucOtto/web/render"
 	"html/template"
 	"net/http"
+	"sync"
 )
 
 type HandlerFunc func(ctx *Context)
@@ -96,14 +97,23 @@ type Engine struct {
 	router
 	funcMap    template.FuncMap
 	HTMLRender *render.HTMLRender
+	pool       sync.Pool
 }
 
 func New() *Engine {
-	return &Engine{
+	engine := &Engine{
 		router: router{
 			routerGroups: make([]*routerGroup, 0),
 		},
 	}
+	engine.pool.New = func() any {
+		return engine.allocateContext()
+	}
+	return engine
+}
+
+func (e *Engine) allocateContext() any {
+	return &Context{engine: e}
 }
 
 func (e *Engine) SetFuncMap(funcMap template.FuncMap) {
@@ -117,7 +127,7 @@ func (e *Engine) LoadTemplate(pattern string) {
 	}
 }
 
-func (e *Engine) HTTPRequestHandler(w http.ResponseWriter, r *http.Request) {
+func (e *Engine) HTTPRequestHandler(context *Context, w http.ResponseWriter, r *http.Request) {
 	method := r.Method
 	for _, group := range e.routerGroups {
 		routerName := SubStringLast(r.RequestURI, "/"+group.name)
@@ -129,11 +139,7 @@ func (e *Engine) HTTPRequestHandler(w http.ResponseWriter, r *http.Request) {
 				fmt.Fprintf(w, "%s %s NOT ALLOWD", r.RequestURI, method)
 				return
 			}
-			ctx := &Context{
-				W: w,
-				R: r,
-			}
-			group.MethodHandle(node.routerName, method, handler, ctx)
+			group.MethodHandle(node.routerName, method, handler, context)
 
 			return
 		}
@@ -145,7 +151,11 @@ func (e *Engine) HTTPRequestHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (e *Engine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	e.HTTPRequestHandler(w, r)
+	context := e.pool.Get().(*Context)
+	context.W = w
+	context.R = r
+	e.HTTPRequestHandler(context, w, r)
+	e.pool.Put(context)
 }
 
 func (e *Engine) Run() {
