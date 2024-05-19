@@ -62,10 +62,22 @@ func (c *Context) FileFromFS(filepath string, fs http.FileSystem) {
 	http.FileServer(fs).ServeHTTP(c.W, c.R)
 }
 
-// 重定向
+// Redirect 重定向
 func (c *Context) Redirect(status int, location string) {
 	if (status < http.StatusMultipleChoices || status > http.StatusPermanentRedirect) && status != http.StatusCreated {
 		panic(fmt.Sprintf("Cannot redirect with status code %d", status))
 	}
 	http.Redirect(c.W, c.R, location, status)
+}
+
+func (c *Context) String(status int, format string, values ...any) (err error) {
+	plainContentType := "text/plain; charset=utf-8"
+	c.W.Header().Set("Content-Type", plainContentType)
+	c.W.WriteHeader(status)
+	if len(values) > 0 {
+		_, err = fmt.Fprintf(c.W, format, values...)
+		return
+	}
+	_, err = c.W.Write(StringToBytes(format))
+	return
 }
