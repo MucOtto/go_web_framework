@@ -24,8 +24,11 @@ func (c *Context) HTML(html string) error {
 }
 
 func (c *Context) HTMLTemplate(name string, data any) error {
-	c.W.Header().Set("Content-Type", "text/html;charset=uft-8")
-	err := c.engine.HTMLRender.Template.ExecuteTemplate(c.W, name, data)
+	err := c.Render(http.StatusOK, &render.HTML{
+		Template: c.engine.HTMLRender.Template,
+		Name:     name,
+		Data:     data,
+	})
 	if err != nil {
 		return err
 	}
