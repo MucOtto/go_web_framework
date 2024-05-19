@@ -1,7 +1,6 @@
 package web
 
 import (
-	"encoding/json"
 	"fmt"
 	"github.com/MucOtto/web/render"
 	"net/http"
@@ -34,13 +33,9 @@ func (c *Context) HTMLTemplate(name string, data any) error {
 }
 
 func (c *Context) JsonTemplate(data any) error {
-	c.W.Header().Set("Content-Type", "application/json;charset=uft-8")
-	c.W.WriteHeader(http.StatusOK)
-	dataJson, err := json.Marshal(data)
-	if err != nil {
-		return err
-	}
-	_, err = c.W.Write(dataJson)
+	err := c.Render(http.StatusOK, &render.Json{
+		Data: data,
+	})
 	return err
 }
 
@@ -76,7 +71,7 @@ func (c *Context) String(status int, format string, values ...any) (err error) {
 		Format: format,
 		Data:   values,
 	})
-	return
+	return err
 }
 
 func (c *Context) Render(code int, r render.Render) error {
