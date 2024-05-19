@@ -130,7 +130,7 @@ func (e *Engine) LoadTemplate(pattern string) {
 func (e *Engine) HTTPRequestHandler(context *Context, w http.ResponseWriter, r *http.Request) {
 	method := r.Method
 	for _, group := range e.routerGroups {
-		routerName := SubStringLast(r.RequestURI, "/"+group.name)
+		routerName := SubStringLast(r.URL.Path, "/"+group.name)
 		node := group.treeNode.Get(routerName)
 		if node != nil {
 			handler, ok := group.handlerFuncMap[node.routerName][method]

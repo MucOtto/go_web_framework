@@ -8,9 +8,21 @@ import (
 )
 
 type Context struct {
-	W      http.ResponseWriter
-	R      *http.Request
-	engine *Engine
+	W          http.ResponseWriter
+	R          *http.Request
+	engine     *Engine
+	queryCache url.Values
+}
+
+func (c *Context) GetQuery(key string) any {
+	c.initQueryCache()
+	return c.queryCache.Get(key)
+}
+
+func (c *Context) initQueryCache() {
+	if c.R != nil {
+		c.queryCache = c.R.URL.Query()
+	}
 }
 
 func (c *Context) HTMLTemplate(name string, data any) error {
