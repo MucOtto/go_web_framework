@@ -19,6 +19,12 @@ func (c *Context) GetQuery(key string) any {
 	return c.queryCache.Get(key)
 }
 
+func (c *Context) GetQueryArray(key string) (values []string, ok bool) {
+	c.initQueryCache()
+	values, ok = c.queryCache[key]
+	return
+}
+
 func (c *Context) initQueryCache() {
 	if c.R != nil {
 		c.queryCache = c.R.URL.Query()
