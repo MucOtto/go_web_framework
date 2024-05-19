@@ -1,8 +1,8 @@
 package web
 
 import (
-	"fmt"
 	"github.com/MucOtto/web/render"
+	"html/template"
 	"net/http"
 	"net/url"
 )
@@ -15,7 +15,7 @@ type Context struct {
 
 func (c *Context) HTMLTemplate(name string, data any) error {
 	err := c.Render(http.StatusOK, &render.HTML{
-		Template: c.engine.HTMLRender.Template,
+		Template: template.New("temp"),
 		Name:     name,
 		Data:     data,
 	})
@@ -53,10 +53,11 @@ func (c *Context) FileFromFS(filepath string, fs http.FileSystem) {
 
 // Redirect 重定向
 func (c *Context) Redirect(status int, location string) {
-	if (status < http.StatusMultipleChoices || status > http.StatusPermanentRedirect) && status != http.StatusCreated {
-		panic(fmt.Sprintf("Cannot redirect with status code %d", status))
-	}
-	http.Redirect(c.W, c.R, location, status)
+	c.Render(http.StatusOK, &render.Redirect{
+		Code:     status,
+		Location: location,
+		Request:  c.R,
+	})
 }
 
 func (c *Context) String(status int, format string, values ...any) (err error) {
