@@ -2,6 +2,7 @@ package web
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/url"
 )
@@ -59,4 +60,12 @@ func (c *Context) FileFromFS(filepath string, fs http.FileSystem) {
 	c.R.URL.Path = filepath
 
 	http.FileServer(fs).ServeHTTP(c.W, c.R)
+}
+
+// 重定向
+func (c *Context) Redirect(status int, location string) {
+	if (status < http.StatusMultipleChoices || status > http.StatusPermanentRedirect) && status != http.StatusCreated {
+		panic(fmt.Sprintf("Cannot redirect with status code %d", status))
+	}
+	http.Redirect(c.W, c.R, location, status)
 }
