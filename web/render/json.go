@@ -9,7 +9,7 @@ type Json struct {
 	Data any
 }
 
-const jsonContentType = "application/json;charset=uft-88"
+const jsonContentType = "application/json;charset=uft-8"
 
 func (s *Json) writeString(w http.ResponseWriter, data any) (err error) {
 	s.WriteContentType(w)
