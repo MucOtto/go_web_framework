@@ -4,9 +4,12 @@ import (
 	"errors"
 	"github.com/MucOtto/web/render"
 	"html/template"
+	"io"
 	"log"
+	"mime/multipart"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 )
 
@@ -80,11 +83,54 @@ func (c *Context) initFormCache() {
 			if !errors.Is(err, http.ErrNotMultipart) {
 				log.Println(err)
 			}
-			c.formCache = c.R.PostForm
 		}
+		c.formCache = c.R.PostForm
 	} else {
 		c.formCache = url.Values{}
 	}
+}
+
+// FormFile 处理表单上传文件
+func (c *Context) FormFile(key string) (*multipart.FileHeader, error) {
+	if err := c.R.ParseMultipartForm(defaultMemory); err != nil {
+		return nil, err
+	}
+	file, header, err := c.R.FormFile(key)
+	if err != nil {
+		return nil, err
+	}
+	defer func(file multipart.File) {
+		err := file.Close()
+		if err != nil {
+			log.Println(err)
+		}
+	}(file)
+	return header, nil
+}
+
+func (c *Context) SaveAndUploadFile(file multipart.File, dst string) error {
+	out, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+
+	defer func() {
+		err := file.Close()
+		if err != nil {
+			log.Println(err)
+		}
+		err = out.Close()
+		if err != nil {
+			log.Println(err)
+		}
+	}()
+
+	_, err = io.Copy(out, file)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (c *Context) HTMLTemplate(name string, data any) error {
