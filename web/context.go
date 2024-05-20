@@ -1,6 +1,7 @@
 package web
 
 import (
+	"encoding/json"
 	"errors"
 	"github.com/MucOtto/web/render"
 	"html/template"
@@ -21,6 +22,20 @@ type Context struct {
 	engine     *Engine
 	queryCache url.Values
 	formCache  url.Values
+}
+
+// Json  前后端Json格式获取解析
+func (c *Context) Json(data any) error {
+	body := c.R.Body
+	if body == nil {
+		return errors.New("invalid request")
+	}
+	decoder := json.NewDecoder(body)
+	err := decoder.Decode(data)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (c *Context) get(key string, cache url.Values) (map[string]string, bool) {
