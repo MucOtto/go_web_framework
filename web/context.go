@@ -1,24 +1,28 @@
 package web
 
 import (
+	"errors"
 	"github.com/MucOtto/web/render"
 	"html/template"
+	"log"
 	"net/http"
 	"net/url"
 	"strings"
 )
+
+const defaultMemory = 64 << 20
 
 type Context struct {
 	W          http.ResponseWriter
 	R          *http.Request
 	engine     *Engine
 	queryCache url.Values
+	formCache  url.Values
 }
 
-func (c *Context) GetMapQuery(key string) (map[string]string, bool) {
-	c.initQueryCache()
+func (c *Context) get(key string, cache url.Values) (map[string]string, bool) {
 	dict, exist := make(map[string]string), false
-	for k, v := range c.queryCache {
+	for k, v := range cache {
 		if i := strings.IndexByte(k, '['); i >= 1 && k[:i] == key {
 			if j := strings.IndexByte(k[i+1:], ']'); j >= 1 {
 				exist = true
@@ -27,6 +31,11 @@ func (c *Context) GetMapQuery(key string) (map[string]string, bool) {
 		}
 	}
 	return dict, exist
+}
+
+func (c *Context) GetMapQuery(key string) (map[string]string, bool) {
+	c.initQueryCache()
+	return c.get(key, c.queryCache)
 }
 
 func (c *Context) GetQuery(key string) any {
@@ -45,6 +54,36 @@ func (c *Context) initQueryCache() {
 		c.queryCache = c.R.URL.Query()
 	} else {
 		c.queryCache = make(url.Values)
+	}
+}
+
+func (c *Context) GetMapForm(key string) (map[string]string, bool) {
+	c.initFormCache()
+	return c.get(key, c.formCache)
+}
+
+func (c *Context) GetForm(key string) any {
+	c.initFormCache()
+	return c.formCache.Get(key)
+}
+
+func (c *Context) GetFormArray(key string) (values []string, ok bool) {
+	c.initFormCache()
+	values, ok = c.formCache[key]
+	return values, ok
+}
+
+func (c *Context) initFormCache() {
+	if c.R != nil {
+		if err := c.R.ParseMultipartForm(defaultMemory); err != nil {
+			// 是否发生了未上传文件之外的其他错误
+			if !errors.Is(err, http.ErrNotMultipart) {
+				log.Println(err)
+			}
+			c.formCache = c.R.PostForm
+		}
+	} else {
+		c.formCache = url.Values{}
 	}
 }
 
