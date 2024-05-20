@@ -17,11 +17,12 @@ import (
 const defaultMemory = 64 << 20
 
 type Context struct {
-	W          http.ResponseWriter
-	R          *http.Request
-	engine     *Engine
-	queryCache url.Values
-	formCache  url.Values
+	W                     http.ResponseWriter
+	R                     *http.Request
+	engine                *Engine
+	queryCache            url.Values
+	formCache             url.Values
+	DisallowUnknownFields bool
 }
 
 // Json  前后端Json格式获取解析
@@ -31,6 +32,9 @@ func (c *Context) Json(data any) error {
 		return errors.New("invalid request")
 	}
 	decoder := json.NewDecoder(body)
+	if c.DisallowUnknownFields {
+		decoder.DisallowUnknownFields()
+	}
 	err := decoder.Decode(data)
 	if err != nil {
 		return err
