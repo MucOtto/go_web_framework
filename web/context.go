@@ -5,6 +5,7 @@ import (
 	"html/template"
 	"net/http"
 	"net/url"
+	"strings"
 )
 
 type Context struct {
@@ -12,6 +13,20 @@ type Context struct {
 	R          *http.Request
 	engine     *Engine
 	queryCache url.Values
+}
+
+func (c *Context) GetMapQuery(key string) (map[string]string, bool) {
+	c.initQueryCache()
+	dict, exist := make(map[string]string), false
+	for k, v := range c.queryCache {
+		if i := strings.IndexByte(k, '['); i >= 1 && k[:i] == key {
+			if j := strings.IndexByte(k[i+1:], ']'); j >= 1 {
+				exist = true
+				dict[k[i+1:][:j]] = v[0]
+			}
+		}
+	}
+	return dict, exist
 }
 
 func (c *Context) GetQuery(key string) any {
@@ -28,6 +43,8 @@ func (c *Context) GetQueryArray(key string) (values []string, ok bool) {
 func (c *Context) initQueryCache() {
 	if c.R != nil {
 		c.queryCache = c.R.URL.Query()
+	} else {
+		c.queryCache = make(url.Values)
 	}
 }
 
