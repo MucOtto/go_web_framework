@@ -3,6 +3,7 @@ package web
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/MucOtto/web/render"
 	"html/template"
 	"io"
@@ -11,6 +12,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"reflect"
 	"strings"
 )
 
@@ -23,21 +25,79 @@ type Context struct {
 	queryCache            url.Values
 	formCache             url.Values
 	DisallowUnknownFields bool
+	DisallowLessFiles     bool
 }
 
 // Json  前后端Json格式获取解析
-func (c *Context) Json(data any) error {
+func (c *Context) Json(obj any) error {
 	body := c.R.Body
 	if body == nil {
 		return errors.New("invalid request")
 	}
 	decoder := json.NewDecoder(body)
+
+	// 是否允许传入的有多余未包含的字段
 	if c.DisallowUnknownFields {
 		decoder.DisallowUnknownFields()
 	}
-	err := decoder.Decode(data)
+
+	// 是否允许少传入包含的字段
+	c.DisallowLessFiles = true
+	if c.DisallowLessFiles {
+		err := validIsLessFields(obj, decoder)
+		if err != nil {
+			return err
+		}
+	}
+
+	err := decoder.Decode(obj)
 	if err != nil {
 		return err
+	}
+	return nil
+}
+
+func validIsLessFields(obj any, decoder *json.Decoder) error {
+	// 判断类型
+	value := reflect.ValueOf(obj)
+	if value.Kind() != reflect.Pointer {
+		return errors.New("This argument need a pointer ")
+	}
+
+	// 这里取得了指针所指的对象
+	elem := value.Elem().Interface()
+	// 获取对象的类别
+	valueOfElem := reflect.ValueOf(elem)
+
+	switch valueOfElem.Kind() {
+	case reflect.Struct:
+		// 创建一个map存储key和elem里的字段进行比较
+		m := make(map[string]any)
+		err := decoder.Decode(&m)
+		if err != nil {
+			return err
+		}
+
+		for i := 0; i < valueOfElem.NumField(); i++ {
+			field := valueOfElem.Type().Field(i)
+			tag := field.Tag.Get("json")
+			mapValue := m[tag]
+			if mapValue == nil {
+				return errors.New(fmt.Sprintf("filed [%s] is not exist", tag))
+			}
+		}
+		// 因为decoder里面的数据流已经读完 不能二次重复读
+		marshal, err := json.Marshal(m)
+		if err != nil {
+			log.Println(err)
+		}
+		err = json.Unmarshal(marshal, obj)
+		if err != nil {
+			return err
+		}
+
+	default:
+		_ = decoder.Decode(obj)
 	}
 	return nil
 }
