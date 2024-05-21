@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/MucOtto/web/render"
+	"github.com/go-playground/validator/v10"
 	"html/template"
 	"io"
 	"log"
@@ -56,7 +57,62 @@ func (c *Context) Json(obj any) error {
 			return err
 		}
 	}
-	return nil
+	return validate(obj)
+}
+
+type SliceValidationError []error
+
+func (err SliceValidationError) Error() string {
+	n := len(err)
+	switch n {
+	case 0:
+		return ""
+	default:
+		var b strings.Builder
+		if err[0] != nil {
+			fmt.Fprintf(&b, "[%d]: %s", 0, err[0].Error())
+		}
+		if n > 1 {
+			for i := 1; i < n; i++ {
+				if err[i] != nil {
+					b.WriteString("\n")
+					fmt.Fprintf(&b, "[%d]: %s", i, err[i].Error())
+				}
+			}
+		}
+		return b.String()
+	}
+}
+
+func validate(obj any) error {
+	if obj == nil {
+		return nil
+	}
+	value := reflect.ValueOf(obj)
+	switch value.Kind() {
+	case reflect.Ptr:
+		return validate(value.Elem().Interface())
+	case reflect.Struct:
+		return validateStruct(obj)
+	case reflect.Slice, reflect.Array:
+		count := value.Len()
+		validateRet := make(SliceValidationError, 0)
+		for i := 0; i < count; i++ {
+			if err := validateStruct(value.Index(i).Interface()); err != nil {
+				validateRet = append(validateRet, err)
+			}
+		}
+		if len(validateRet) == 0 {
+			return nil
+		}
+		return validateRet
+	default:
+		return nil
+	}
+}
+
+func validateStruct(obj any) error {
+	return validator.New().Struct(obj)
 }
 
 func validIsLessFields(obj any, decoder *json.Decoder) error {
