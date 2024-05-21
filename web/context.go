@@ -50,9 +50,11 @@ func (c *Context) Json(obj any) error {
 		}
 	}
 
-	err := decoder.Decode(obj)
-	if err != nil {
-		return err
+	if !c.DisallowLessFiles && !c.DisallowUnknownFields {
+		err := decoder.Decode(obj)
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -71,34 +73,69 @@ func validIsLessFields(obj any, decoder *json.Decoder) error {
 
 	switch valueOfElem.Kind() {
 	case reflect.Struct:
-		// 创建一个map存储key和elem里的字段进行比较
-		m := make(map[string]any)
-		err := decoder.Decode(&m)
-		if err != nil {
-			return err
-		}
-
-		for i := 0; i < valueOfElem.NumField(); i++ {
-			field := valueOfElem.Type().Field(i)
-			tag := field.Tag.Get("json")
-			mapValue := m[tag]
-			if mapValue == nil {
-				return errors.New(fmt.Sprintf("filed [%s] is not exist", tag))
-			}
-		}
-		// 因为decoder里面的数据流已经读完 不能二次重复读
-		marshal, err := json.Marshal(m)
-		if err != nil {
-			log.Println(err)
-		}
-		err = json.Unmarshal(marshal, obj)
-		if err != nil {
-			return err
+		return checkStruct(valueOfElem, obj, decoder)
+	case reflect.Slice, reflect.Array:
+		elem := valueOfElem.Type().Elem()
+		elemType := elem.Kind()
+		if elemType == reflect.Struct {
+			return checkSlice(elem, obj, decoder)
 		}
 
 	default:
 		_ = decoder.Decode(obj)
 	}
+	return nil
+}
+
+func checkSlice(elem reflect.Type, obj any, decoder *json.Decoder) error {
+	mapData := make([]map[string]interface{}, 0)
+	_ = decoder.Decode(&mapData)
+	if len(mapData) <= 0 {
+		return nil
+	}
+	for _, item := range mapData {
+		for i := 0; i < elem.NumField(); i++ {
+			field := elem.Field(i)
+			tag := field.Tag.Get("json")
+			value := item[tag]
+			if value == nil {
+				return errors.New(fmt.Sprintf("filed [%s] is required", tag))
+			}
+		}
+	}
+	if obj != nil {
+		marshal, _ := json.Marshal(mapData)
+		_ = json.Unmarshal(marshal, obj)
+	}
+	return nil
+}
+
+func checkStruct(valueOfElem reflect.Value, obj any, decoder *json.Decoder) error {
+	// 创建一个map存储key和elem里的字段进行比较
+	m := make(map[string]any)
+	err := decoder.Decode(&m)
+	if err != nil {
+		return err
+	}
+
+	for i := 0; i < valueOfElem.NumField(); i++ {
+		field := valueOfElem.Type().Field(i)
+		tag := field.Tag.Get("json")
+		mapValue := m[tag]
+		if mapValue == nil {
+			return errors.New(fmt.Sprintf("filed [%s] is not exist", tag))
+		}
+	}
+	// 因为decoder里面的数据流已经读完 不能二次重复读
+	marshal, err := json.Marshal(m)
+	if err != nil {
+		log.Println(err)
+	}
+	err = json.Unmarshal(marshal, obj)
+	if err != nil {
+		return err
+	}
+	// 切片和数组的情况
 	return nil
 }
 
