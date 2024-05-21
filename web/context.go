@@ -1,11 +1,9 @@
 package web
 
 import (
-	"encoding/json"
 	"errors"
-	"fmt"
+	"github.com/MucOtto/web/binding"
 	"github.com/MucOtto/web/render"
-	"github.com/go-playground/validator/v10"
 	"html/template"
 	"io"
 	"log"
@@ -13,7 +11,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"reflect"
 	"strings"
 )
 
@@ -29,147 +26,12 @@ type Context struct {
 	DisallowLessFiles     bool
 }
 
-// Json  前后端Json格式获取解析
-func (c *Context) Json(obj any) error {
-	body := c.R.Body
-	if body == nil {
-		return errors.New("invalid request")
-	}
-	decoder := json.NewDecoder(body)
-
-	// 是否允许传入的有多余未包含的字段
-	if c.DisallowUnknownFields {
-		decoder.DisallowUnknownFields()
-	}
-
-	// 是否允许少传入包含的字段
-	c.DisallowLessFiles = true
-	if c.DisallowLessFiles {
-		err := validIsLessFields(obj, decoder)
-		if err != nil {
-			return err
-		}
-	}
-
-	if !c.DisallowLessFiles && !c.DisallowUnknownFields {
-		err := decoder.Decode(obj)
-		if err != nil {
-			return err
-		}
-	}
-	return validate(obj)
-}
-
-type SliceValidationError []error
-
-func (err SliceValidationError) Error() string {
-	n := len(err)
-	switch n {
-	case 0:
-		return ""
-	default:
-		var b strings.Builder
-		if err[0] != nil {
-			fmt.Fprintf(&b, "[%d]: %s", 0, err[0].Error())
-		}
-		if n > 1 {
-			for i := 1; i < n; i++ {
-				if err[i] != nil {
-					b.WriteString("\n")
-					fmt.Fprintf(&b, "[%d]: %s", i, err[i].Error())
-				}
-			}
-		}
-		return b.String()
-	}
-}
-
-func validate(obj any) error {
-	return validateStruct(obj)
-}
-
-func validateStruct(obj any) error {
-	return validator.New().Struct(obj)
-}
-
-func validIsLessFields(obj any, decoder *json.Decoder) error {
-	// 判断类型
-	value := reflect.ValueOf(obj)
-	if value.Kind() != reflect.Pointer {
-		return errors.New("This argument need a pointer ")
-	}
-
-	// 这里取得了指针所指的对象
-	elem := value.Elem().Interface()
-	// 获取对象的类别
-	valueOfElem := reflect.ValueOf(elem)
-
-	switch valueOfElem.Kind() {
-	case reflect.Struct:
-		return checkStruct(valueOfElem, obj, decoder)
-	case reflect.Slice, reflect.Array:
-		elem := valueOfElem.Type().Elem()
-		elemType := elem.Kind()
-		if elemType == reflect.Struct {
-			return checkSlice(elem, obj, decoder)
-		}
-
-	default:
-		_ = decoder.Decode(obj)
-	}
-	return nil
-}
-
-func checkSlice(elem reflect.Type, obj any, decoder *json.Decoder) error {
-	mapData := make([]map[string]interface{}, 0)
-	_ = decoder.Decode(&mapData)
-	if len(mapData) <= 0 {
-		return nil
-	}
-	for _, item := range mapData {
-		for i := 0; i < elem.NumField(); i++ {
-			field := elem.Field(i)
-			tag := field.Tag.Get("json")
-			value := item[tag]
-			if value == nil {
-				return errors.New(fmt.Sprintf("filed [%s] is required", tag))
-			}
-		}
-	}
-	if obj != nil {
-		marshal, _ := json.Marshal(mapData)
-		_ = json.Unmarshal(marshal, obj)
-	}
-	return nil
-}
-
-func checkStruct(valueOfElem reflect.Value, obj any, decoder *json.Decoder) error {
-	// 创建一个map存储key和elem里的字段进行比较
-	m := make(map[string]any)
-	err := decoder.Decode(&m)
-	if err != nil {
-		return err
-	}
-
-	for i := 0; i < valueOfElem.NumField(); i++ {
-		field := valueOfElem.Type().Field(i)
-		tag := field.Tag.Get("json")
-		mapValue := m[tag]
-		if mapValue == nil {
-			return errors.New(fmt.Sprintf("filed [%s] is not exist", tag))
-		}
-	}
-	// 因为decoder里面的数据流已经读完 不能二次重复读
-	marshal, err := json.Marshal(m)
-	if err != nil {
-		log.Println(err)
-	}
-	err = json.Unmarshal(marshal, obj)
-	if err != nil {
-		return err
-	}
-	// 切片和数组的情况
-	return nil
+// BindJson 前后端Json格式获取解析
+func (c *Context) BindJson(obj any) error {
+	jsonBinding := &binding.JSON
+	jsonBinding.DisallowUnknownFields = c.DisallowUnknownFields
+	jsonBinding.DisallowLessFiles = c.DisallowLessFiles
+	return c.BindWith(obj, jsonBinding)
 }
 
 func (c *Context) get(key string, cache url.Values) (map[string]string, bool) {
@@ -343,4 +205,12 @@ func (c *Context) Render(code int, r render.Render) error {
 		c.W.WriteHeader(code)
 	}
 	return err
+}
+
+func (c *Context) BindWith(obj any, bind binding.Binding) error {
+	if err := bind.Bind(c.R, obj); err != nil {
+		c.W.WriteHeader(http.StatusBadRequest)
+		return err
+	}
+	return nil
 }
