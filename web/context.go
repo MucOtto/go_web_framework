@@ -34,6 +34,11 @@ func (c *Context) BindJson(obj any) error {
 	return c.BindWith(obj, jsonBinding)
 }
 
+func (c *Context) BindXml(obj any) error {
+	xmlBinding := &binding.XMl
+	return c.BindWith(obj, xmlBinding)
+}
+
 func (c *Context) get(key string, cache url.Values) (map[string]string, bool) {
 	dict, exist := make(map[string]string), false
 	for k, v := range cache {

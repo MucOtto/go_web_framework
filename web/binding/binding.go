@@ -8,3 +8,4 @@ type Binding interface {
 }
 
 var JSON = jsonBinding{}
+var XMl = xmlBinding{}

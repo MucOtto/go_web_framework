@@ -8,6 +8,8 @@ import (
 	"sync"
 )
 
+var Validator StructValidator = &defaultValidator{}
+
 type StructValidator interface {
 	// ValidateStruct 结构体验证，如果错误返回对应的错误信息
 	ValidateStruct(any) error
@@ -85,4 +87,8 @@ func (d *defaultValidator) lazyInit() {
 	d.one.Do(func() {
 		d.validate = validator.New()
 	})
+}
+
+func validate(obj any) error {
+	return Validator.ValidateStruct(obj)
 }

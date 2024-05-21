@@ -10,8 +10,6 @@ import (
 	"reflect"
 )
 
-var Validator StructValidator = &defaultValidator{}
-
 type jsonBinding struct {
 	DisallowUnknownFields bool
 	DisallowLessFiles     bool
@@ -45,10 +43,6 @@ func (b *jsonBinding) decodeJson(body io.Reader, obj any) error {
 		}
 	}
 	return validate(obj)
-}
-
-func validate(obj any) error {
-	return Validator.ValidateStruct(obj)
 }
 
 func validIsLessFields(obj any, decoder *json.Decoder) error {
