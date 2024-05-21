@@ -85,30 +85,7 @@ func (err SliceValidationError) Error() string {
 }
 
 func validate(obj any) error {
-	if obj == nil {
-		return nil
-	}
-	value := reflect.ValueOf(obj)
-	switch value.Kind() {
-	case reflect.Ptr:
-		return validate(value.Elem().Interface())
-	case reflect.Struct:
-		return validateStruct(obj)
-	case reflect.Slice, reflect.Array:
-		count := value.Len()
-		validateRet := make(SliceValidationError, 0)
-		for i := 0; i < count; i++ {
-			if err := validateStruct(value.Index(i).Interface()); err != nil {
-				validateRet = append(validateRet, err)
-			}
-		}
-		if len(validateRet) == 0 {
-			return nil
-		}
-		return validateRet
-	default:
-		return nil
-	}
+	return validateStruct(obj)
 }
 
 func validateStruct(obj any) error {
