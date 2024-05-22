@@ -39,23 +39,51 @@ type LoggerConfig struct {
 type LoggerFormatter func(params *LogFormatterParams) string
 
 type LogFormatterParams struct {
-	Request    *http.Request
-	TimeStamp  time.Time
-	StatusCode int
-	Latency    time.Duration
-	ClientIP   net.IP
-	Method     string
-	Path       string
+	Request      *http.Request
+	TimeStamp    time.Time
+	StatusCode   int
+	Latency      time.Duration
+	ClientIP     net.IP
+	Method       string
+	Path         string
+	DisplayColor bool
+}
+
+func (p *LogFormatterParams) StatusCodeColor() string {
+	code := p.StatusCode
+	switch code {
+	case http.StatusOK:
+		return green
+	default:
+		return red
+	}
+}
+
+func (p *LogFormatterParams) ResetColor() string {
+	return reset
 }
 
 var defaultLogFormatter = func(params *LogFormatterParams) string {
+	statusCodeColor := params.StatusCodeColor()
+	resetColor := params.ResetColor()
 	if params.Latency > time.Minute {
 		params.Latency = params.Latency.Truncate(time.Second)
 	}
-	return fmt.Sprintf("[msgo] %v | %3d | %13v | %15s |%-7s %#v",
-		params.TimeStamp.Format("2006/01/02 - 15:04:05"),
-		params.StatusCode,
-		params.Latency, params.ClientIP, params.Method, params.Path,
+	// 不开启颜色显示 用于向文件输出日志
+	if params.DisplayColor == false {
+		return fmt.Sprintf("[msgo] %v | %3d | %13v | %15s |%-7s %#v",
+			params.TimeStamp.Format("2006/01/02 - 15:04:05"),
+			params.StatusCode,
+			params.Latency, params.ClientIP, params.Method, params.Path,
+		)
+	}
+	return fmt.Sprintf("%s [otto] %s |%s %v %s| %s %3d %s |%s %13v %s| %15s  |%s %-7s %s %s %#v %s",
+		yellow, resetColor, blue, params.TimeStamp.Format("2006/01/02 - 15:04:05"), resetColor,
+		statusCodeColor, params.StatusCode, resetColor,
+		red, params.Latency, resetColor,
+		params.ClientIP,
+		magenta, params.Method, resetColor,
+		cyan, params.Path, resetColor,
 	)
 }
 
@@ -98,6 +126,7 @@ func LoggingWithConfig(conf *LoggerConfig, next HandlerFunc) HandlerFunc {
 		param.StatusCode = statusCode
 		param.Method = method
 		param.Path = path
+		param.DisplayColor = true
 		fmt.Fprint(out, formatter(param))
 	}
 }
