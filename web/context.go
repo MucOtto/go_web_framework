@@ -24,6 +24,7 @@ type Context struct {
 	formCache             url.Values
 	DisallowUnknownFields bool
 	DisallowLessFiles     bool
+	StatusCode            int
 }
 
 // BindJson 前后端Json格式获取解析
@@ -206,6 +207,7 @@ func (c *Context) String(status int, format string, values ...any) (err error) {
 
 func (c *Context) Render(code int, r render.Render) error {
 	err := r.Render(c.W)
+	c.StatusCode = code
 	if code != http.StatusOK {
 		c.W.WriteHeader(code)
 	}
