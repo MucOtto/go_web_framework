@@ -27,6 +27,16 @@ const (
 
 type LoggerLevel int
 
+type LoggingFormatter interface {
+	Format(param *LoggingFormatterParam) string
+}
+
+type LoggingFormatterParam struct {
+	Color bool
+	Level LoggerLevel
+	Msg   any
+}
+
 type LoggerFormatter struct {
 	Color bool
 	Level LoggerLevel
@@ -35,7 +45,7 @@ type LoggerFormatter struct {
 type Logger struct {
 	Outs      []io.Writer
 	Level     LoggerLevel
-	Formatter LoggerFormatter
+	Formatter LoggingFormatter
 }
 
 const (
@@ -52,6 +62,7 @@ func Default() *Logger {
 	logger := New()
 	logger.Outs = append(logger.Outs, os.Stdout)
 	logger.Level = LevelDebug
+	logger.Formatter = &TextFormatter{}
 	return logger
 }
 
@@ -72,12 +83,15 @@ func (l *Logger) Print(level LoggerLevel, msg any) {
 		//级别不满足 不打印日志
 		return
 	}
-	l.Formatter.Level = level
-	formatter := l.Formatter.formatter(msg)
+	param := &LoggingFormatterParam{
+		Level: l.Level,
+		Msg:   msg,
+	}
+	formatter := l.Formatter.Format(param)
 	for _, out := range l.Outs {
 		if out == os.Stdout {
-			l.Formatter.Color = true
-			formatter = l.Formatter.formatter(msg)
+			param.Color = true
+			formatter = l.Formatter.Format(param)
 		}
 		fmt.Fprint(out, formatter)
 	}
