@@ -3,6 +3,7 @@ package web
 import (
 	"errors"
 	"github.com/MucOtto/web/binding"
+	mylog "github.com/MucOtto/web/log"
 	"github.com/MucOtto/web/render"
 	"html/template"
 	"io"
@@ -25,6 +26,7 @@ type Context struct {
 	DisallowUnknownFields bool
 	DisallowLessFiles     bool
 	StatusCode            int
+	Logger                *mylog.Logger
 }
 
 // BindJson 前后端Json格式获取解析
@@ -206,11 +208,9 @@ func (c *Context) String(status int, format string, values ...any) (err error) {
 }
 
 func (c *Context) Render(code int, r render.Render) error {
+	c.W.WriteHeader(code)
 	err := r.Render(c.W)
 	c.StatusCode = code
-	if code != http.StatusOK {
-		c.W.WriteHeader(code)
-	}
 	return err
 }
 
@@ -220,4 +220,8 @@ func (c *Context) BindWith(obj any, bind binding.Binding) error {
 		return err
 	}
 	return nil
+}
+
+func (c *Context) Fail(code int, msg string) {
+	c.String(code, msg)
 }

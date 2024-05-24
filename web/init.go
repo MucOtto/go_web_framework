@@ -2,6 +2,7 @@ package web
 
 import (
 	"fmt"
+	mylog "github.com/MucOtto/web/log"
 	"github.com/MucOtto/web/render"
 	"html/template"
 	"net/http"
@@ -74,10 +75,11 @@ func (r *routerGroup) Delete(name string, _handlerFunc HandlerFunc, middlewares 
 
 type router struct {
 	routerGroups []*routerGroup
+	engine       *Engine
 }
 
 func (r *router) Group(name string) *routerGroup {
-	routerGroup := &routerGroup{
+	group := &routerGroup{
 		name:              name,
 		handlerFuncMap:    make(map[string]map[string]HandlerFunc),
 		middlewareFuncMap: make(map[string]map[string][]MiddlewareFunc),
@@ -88,9 +90,9 @@ func (r *router) Group(name string) *routerGroup {
 		},
 		Middlewares: make([]MiddlewareFunc, 0),
 	}
-
-	r.routerGroups = append(r.routerGroups, routerGroup)
-	return routerGroup
+	group.MiddlewareHandle(r.engine.Middleware...)
+	r.routerGroups = append(r.routerGroups, group)
+	return group
 }
 
 type Engine struct {
@@ -98,6 +100,8 @@ type Engine struct {
 	funcMap    template.FuncMap
 	HTMLRender *render.HTMLRender
 	pool       sync.Pool
+	Logger     *mylog.Logger
+	Middleware []MiddlewareFunc
 }
 
 func New() *Engine {
@@ -106,6 +110,9 @@ func New() *Engine {
 			routerGroups: make([]*routerGroup, 0),
 		},
 	}
+	engine.Logger = mylog.Default()
+	engine.MiddlewareHandle(Logging, Recovery)
+	engine.router.engine = engine
 	engine.pool.New = func() any {
 		return engine.allocateContext()
 	}
@@ -152,6 +159,7 @@ func (e *Engine) HTTPRequestHandler(context *Context, w http.ResponseWriter, r *
 
 func (e *Engine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	context := e.pool.Get().(*Context)
+	context.Logger = e.Logger
 	context.W = w
 	context.R = r
 	e.HTTPRequestHandler(context, w, r)
@@ -165,4 +173,8 @@ func (e *Engine) Run() {
 	if err != nil {
 		return
 	}
+}
+
+func (e *Engine) MiddlewareHandle(middlewareFunc ...MiddlewareFunc) {
+	e.Middleware = append(e.Middleware, middlewareFunc...)
 }

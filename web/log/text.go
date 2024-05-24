@@ -14,9 +14,13 @@ func (f *TextFormatter) Format(param *LoggingFormatterParam) string {
 		//要带颜色  error的颜色 为红色 info为绿色 debug为蓝色
 		levelColor := f.LevelColor(param.Level)
 		msgColor := f.MsgColor(param.Level)
-		return fmt.Sprintf("%s [otto] %s %s%v%s | level= %s %s %s | msg=%s %#v %s \n",
+		msgInfo := "| mgs="
+		if param.Level == LevelError {
+			msgInfo = "\nError caused by:"
+		}
+		return fmt.Sprintf("%s [otto] %s %s%v%s | level= %s %s %s %s%s %#v %s \n",
 			yellow, reset, blue, now.Format("2006/01/02 - 15:04:05"), reset,
-			levelColor, param.Level.Level(), reset, msgColor, param.Msg, reset,
+			levelColor, param.Level.Level(), reset, msgInfo, msgColor, param.Msg, reset,
 		)
 	}
 	return fmt.Sprintf("[otto] %v | level=%s | msg= %#v \n",

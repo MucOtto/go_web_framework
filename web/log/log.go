@@ -118,7 +118,7 @@ func (l *Logger) Print(level LoggerLevel, msg any) {
 		return
 	}
 	param := &LoggingFormatterParam{
-		Level: l.Level,
+		Level: level,
 		Msg:   msg,
 	}
 	formatter := l.Formatter.Format(param)
