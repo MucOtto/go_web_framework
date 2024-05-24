@@ -2,9 +2,12 @@ package log
 
 import (
 	"fmt"
+	"github.com/MucOtto/web/internel/mystrings"
 	"io"
 	"os"
 	"path"
+	"strings"
+	"time"
 )
 
 const (
@@ -43,10 +46,11 @@ type LoggerFormatter struct {
 }
 
 type Logger struct {
-	Outs      []LoggerWriter
-	Level     LoggerLevel
-	Formatter LoggingFormatter
-	logPath   string
+	Outs        []LoggerWriter
+	Level       LoggerLevel
+	Formatter   LoggingFormatter
+	logPath     string
+	LogFileSize int64
 }
 
 type LoggerWriter struct {
@@ -126,7 +130,27 @@ func (l *Logger) Print(level LoggerLevel, msg any) {
 		} else if out.Level == -1 || out.Level == level {
 			param.Color = false
 			formatter = l.Formatter.Format(param)
+			// 检查日志大小 适当进行切分
+			l.checkFileSize(out)
 			fmt.Fprint(out.Out, formatter)
+		}
+	}
+}
+
+func (l *Logger) checkFileSize(writer LoggerWriter) {
+	file := writer.Out.(*os.File)
+	if file != nil {
+		stat, _ := file.Stat()
+		size := stat.Size()
+		if l.LogFileSize <= 0 {
+			l.LogFileSize = 64 << 20
+		}
+		if size > l.LogFileSize {
+			_, filename := path.Split(file.Name())
+			name := filename[0:strings.Index(filename, ".")]
+			filename = path.Join(l.logPath, mystrings.ConnectAnyStr(name, ".", time.Now().Format("2006-01-02 15:04:05"), ".log"))
+			io := fileWriter(filename)
+			writer.Out = io
 		}
 	}
 }
