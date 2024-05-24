@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"time"
+	"path"
 )
 
 const (
@@ -43,9 +43,15 @@ type LoggerFormatter struct {
 }
 
 type Logger struct {
-	Outs      []io.Writer
+	Outs      []LoggerWriter
 	Level     LoggerLevel
 	Formatter LoggingFormatter
+	logPath   string
+}
+
+type LoggerWriter struct {
+	Level LoggerLevel
+	Out   io.Writer
 }
 
 const (
@@ -60,7 +66,11 @@ func New() *Logger {
 
 func Default() *Logger {
 	logger := New()
-	logger.Outs = append(logger.Outs, os.Stdout)
+	w := LoggerWriter{
+		Level: LevelDebug,
+		Out:   os.Stdout,
+	}
+	logger.Outs = append(logger.Outs, w)
 	logger.Level = LevelDebug
 	logger.Formatter = &TextFormatter{}
 	return logger
@@ -78,6 +88,26 @@ func (l *Logger) Error(msg any) {
 	l.Print(LevelError, msg)
 }
 
+func (l *Logger) SetFilePath(logPath string) {
+	l.logPath = logPath
+	l.Outs = append(l.Outs, LoggerWriter{
+		Level: -1,
+		Out:   fileWriter(path.Join(logPath, "all.log")),
+	})
+	l.Outs = append(l.Outs, LoggerWriter{
+		Level: LevelDebug,
+		Out:   fileWriter(path.Join(logPath, "debug.log")),
+	})
+	l.Outs = append(l.Outs, LoggerWriter{
+		Level: LevelInfo,
+		Out:   fileWriter(path.Join(logPath, "info.log")),
+	})
+	l.Outs = append(l.Outs, LoggerWriter{
+		Level: LevelError,
+		Out:   fileWriter(path.Join(logPath, "error.log")),
+	})
+}
+
 func (l *Logger) Print(level LoggerLevel, msg any) {
 	if l.Level > level {
 		//级别不满足 不打印日志
@@ -89,29 +119,16 @@ func (l *Logger) Print(level LoggerLevel, msg any) {
 	}
 	formatter := l.Formatter.Format(param)
 	for _, out := range l.Outs {
-		if out == os.Stdout {
+		if out.Out == os.Stdout {
 			param.Color = true
 			formatter = l.Formatter.Format(param)
+			fmt.Fprint(out.Out, formatter)
+		} else if out.Level == -1 || out.Level == level {
+			param.Color = false
+			formatter = l.Formatter.Format(param)
+			fmt.Fprint(out.Out, formatter)
 		}
-		fmt.Fprint(out, formatter)
 	}
-}
-
-func (f *LoggerFormatter) formatter(msg any) string {
-	now := time.Now()
-	if f.Color {
-		//要带颜色  error的颜色 为红色 info为绿色 debug为蓝色
-		levelColor := f.LevelColor()
-		msgColor := f.MsgColor()
-		return fmt.Sprintf("%s [otto] %s %s%v%s | level= %s %s %s | msg=%s %#v %s \n",
-			yellow, reset, blue, now.Format("2006/01/02 - 15:04:05"), reset,
-			levelColor, f.Level.Level(), reset, msgColor, msg, reset,
-		)
-	}
-	return fmt.Sprintf("[otto] %v | level=%s | msg= %#v \n",
-		now.Format("2006/01/02 - 15:04:05"),
-		f.Level.Level(), msg,
-	)
 }
 
 func (f *LoggerFormatter) LevelColor() string {
@@ -151,4 +168,12 @@ func (level LoggerLevel) Level() string {
 	default:
 		return ""
 	}
+}
+
+func fileWriter(name string) io.Writer {
+	w, err := os.OpenFile(name, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0644)
+	if err != nil {
+		panic(err)
+	}
+	return w
 }
