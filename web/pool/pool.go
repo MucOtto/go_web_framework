@@ -30,7 +30,8 @@ type Pool struct {
 	//lock 去保护pool里面的相关资源的安全
 	lock sync.Mutex
 	//once 释放只能调用一次 不能多次调用
-	once sync.Once
+	once        sync.Once
+	workerCache sync.Pool
 }
 
 func NewPool(cap int, expire int) (p *Pool, err error) {
@@ -45,6 +46,13 @@ func NewPool(cap int, expire int) (p *Pool, err error) {
 
 	p.cap = int32(cap)
 	p.expire = time.Duration(expire) * time.Second
+
+	p.workerCache.New = func() any {
+		return &Worker{
+			pool: p,
+			task: make(chan func(), 8),
+		}
+	}
 
 	return p, nil
 }
@@ -70,10 +78,17 @@ func (p *Pool) GetWorker() *Worker {
 	// 如果没空闲新建一个
 	// 满足运行数量小于容量
 	if p.running < p.cap {
-		w := &Worker{
-			pool: p,
-			task: make(chan func(), 8),
+		get := p.workerCache.Get()
+		var w *Worker
+		if get == nil {
+			w = &Worker{
+				pool: p,
+				task: make(chan func(), 8),
+			}
+		} else {
+			w = get.(*Worker)
 		}
+
 		w.run()
 		return w
 	}
