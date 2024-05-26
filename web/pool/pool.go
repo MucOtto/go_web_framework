@@ -55,5 +55,37 @@ func (p *Pool) Submit(task func()) error {
 }
 
 func (p *Pool) GetWorker() *Worker {
-	return nil
+	n := len(p.Workers) - 1
+	// 如果有空闲 直接取
+	if n >= 0 {
+		w := p.Workers[n]
+		p.Workers[n] = nil
+		p.Workers = p.Workers[:n]
+		return w
+	}
+	// 如果没空闲新建一个
+	// 满足运行数量小于容量
+	if p.running < p.cap {
+		w := &Worker{
+			pool: p,
+			task: make(chan func(), 8),
+		}
+		w.run()
+		return w
+	}
+	// 运行数量大于容量 阻塞
+	for {
+		p.lock.Lock()
+		idleWorkers := p.Workers
+		n := len(idleWorkers) - 1
+		if n < 0 {
+			p.lock.Unlock()
+			continue
+		}
+		w := idleWorkers[n]
+		idleWorkers[n] = nil
+		p.Workers = idleWorkers[:n]
+		p.lock.Unlock()
+		return w
+	}
 }
