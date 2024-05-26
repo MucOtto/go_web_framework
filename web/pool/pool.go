@@ -34,6 +34,7 @@ type Pool struct {
 }
 
 func NewPool(cap int, expire int) (p *Pool, err error) {
+	p = &Pool{}
 	if cap < 0 {
 		return nil, ErrorInValidCap
 	}
@@ -49,6 +50,9 @@ func NewPool(cap int, expire int) (p *Pool, err error) {
 }
 
 func (p *Pool) Submit(task func()) error {
+	if len(p.release) > 0 {
+		return ErrorHasClosed
+	}
 	w := p.GetWorker()
 	w.task <- task
 	return nil
@@ -88,4 +92,60 @@ func (p *Pool) GetWorker() *Worker {
 		p.lock.Unlock()
 		return w
 	}
+}
+
+func (p *Pool) PutWorker(w *Worker) {
+	w.lastTime = time.Now()
+	p.lock.Lock()
+	p.Workers = append(p.Workers, w)
+	p.lock.Unlock()
+}
+
+func (p *Pool) Release() {
+	p.once.Do(func() {
+		//只执行一次
+		p.lock.Lock()
+		workers := p.Workers
+		for i, w := range workers {
+			w.task = nil
+			w.pool = nil
+			workers[i] = nil
+		}
+		p.Workers = nil
+		p.lock.Unlock()
+		p.release <- sig{}
+	})
+}
+
+func (p *Pool) Restart() bool {
+	if len(p.release) <= 0 {
+		return true
+	}
+	_ = <-p.release
+	go p.expireWorker()
+	return true
+}
+
+func (p *Pool) expireWorker() {
+	ticker := time.NewTicker(p.expire)
+	n := len(p.Workers) - 1
+	p.lock.Lock()
+	for range ticker.C {
+		if len(p.release) > 0 {
+			break
+		}
+		if n > 0 {
+			for i, worker := range p.Workers {
+				if time.Now().Sub(worker.lastTime) < p.expire {
+					// 先进先出 如果第一个都小于 后面的都小于
+					break
+				}
+				n = i
+				worker.task <- nil
+				p.Workers[i] = nil
+				p.Workers = p.Workers[i+1:]
+			}
+		}
+	}
+	p.lock.Unlock()
 }

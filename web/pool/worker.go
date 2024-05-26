@@ -20,6 +20,11 @@ func (w *Worker) run() {
 
 func (w *Worker) running() {
 	for f := range w.task {
+		if f == nil {
+			continue
+		}
 		f()
+		w.pool.PutWorker(w)
+		atomic.AddInt32(&w.pool.running, -1)
 	}
 }
