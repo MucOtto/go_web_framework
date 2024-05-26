@@ -164,8 +164,8 @@ func (c *Context) HTMLTemplate(name string, data any) error {
 	return nil
 }
 
-func (c *Context) JsonTemplate(data any) error {
-	err := c.Render(http.StatusOK, &render.Json{
+func (c *Context) JsonTemplate(code int, data any) error {
+	err := c.Render(code, &render.Json{
 		Data: data,
 	})
 	return err
@@ -208,8 +208,7 @@ func (c *Context) String(status int, format string, values ...any) (err error) {
 }
 
 func (c *Context) Render(code int, r render.Render) error {
-	c.W.WriteHeader(code)
-	err := r.Render(c.W)
+	err := r.Render(c.W, code)
 	c.StatusCode = code
 	return err
 }
@@ -224,4 +223,14 @@ func (c *Context) BindWith(obj any, bind binding.Binding) error {
 
 func (c *Context) Fail(code int, msg string) {
 	c.String(code, msg)
+}
+
+func (c *Context) HandleWithError(code int, obj any, err error) {
+	if err != nil {
+		code, data := c.engine.errorHandler(err)
+		c.JsonTemplate(code, data)
+		return
+	}
+
+	c.JsonTemplate(code, obj)
 }

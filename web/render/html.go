@@ -16,8 +16,9 @@ type HTMLRender struct {
 
 const htmlContentType = "text/html;charset=uft-8"
 
-func (s *HTML) writeString(w http.ResponseWriter, name string, data any) (err error) {
+func (s *HTML) writeString(w http.ResponseWriter, name string, data any, code int) (err error) {
 	s.WriteContentType(w)
+	w.WriteHeader(code)
 	err = s.Template.ExecuteTemplate(w, name, data)
 	if err != nil {
 		return err
@@ -25,8 +26,8 @@ func (s *HTML) writeString(w http.ResponseWriter, name string, data any) (err er
 	return nil
 }
 
-func (s *HTML) Render(w http.ResponseWriter) error {
-	return s.writeString(w, s.Name, s.Data)
+func (s *HTML) Render(w http.ResponseWriter, code int) error {
+	return s.writeString(w, s.Name, s.Data, code)
 }
 
 func (s *HTML) WriteContentType(w http.ResponseWriter) {

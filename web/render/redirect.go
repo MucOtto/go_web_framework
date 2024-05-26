@@ -20,7 +20,7 @@ func (s *Redirect) writeString(w http.ResponseWriter, location string) (err erro
 	return nil
 }
 
-func (s *Redirect) Render(w http.ResponseWriter) error {
+func (s *Redirect) Render(w http.ResponseWriter, code int) error {
 	return s.writeString(w, s.Location)
 }
 

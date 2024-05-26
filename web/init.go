@@ -95,13 +95,16 @@ func (r *router) Group(name string) *routerGroup {
 	return group
 }
 
+type ErrorHandler func(err error) (int, any)
+
 type Engine struct {
 	router
-	funcMap    template.FuncMap
-	HTMLRender *render.HTMLRender
-	pool       sync.Pool
-	Logger     *mylog.Logger
-	Middleware []MiddlewareFunc
+	funcMap      template.FuncMap
+	HTMLRender   *render.HTMLRender
+	pool         sync.Pool
+	Logger       *mylog.Logger
+	Middleware   []MiddlewareFunc
+	errorHandler ErrorHandler
 }
 
 func New() *Engine {
@@ -177,4 +180,8 @@ func (e *Engine) Run() {
 
 func (e *Engine) MiddlewareHandle(middlewareFunc ...MiddlewareFunc) {
 	e.Middleware = append(e.Middleware, middlewareFunc...)
+}
+
+func (e *Engine) RegisterErrorHandler(handler ErrorHandler) {
+	e.errorHandler = handler
 }

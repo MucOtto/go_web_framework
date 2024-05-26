@@ -13,8 +13,9 @@ type String struct {
 
 const contentType = "text/plain; charset=utf-8"
 
-func (s *String) writeString(w http.ResponseWriter, format string, data []any) (err error) {
+func (s *String) writeString(w http.ResponseWriter, format string, data []any, code int) (err error) {
 	s.WriteContentType(w)
+	w.WriteHeader(code)
 	if len(data) > 0 {
 		_, err = fmt.Fprintf(w, format, data...)
 		return
@@ -23,8 +24,8 @@ func (s *String) writeString(w http.ResponseWriter, format string, data []any) (
 	return
 }
 
-func (s *String) Render(w http.ResponseWriter) error {
-	return s.writeString(w, s.Format, s.Data)
+func (s *String) Render(w http.ResponseWriter, code int) error {
+	return s.writeString(w, s.Format, s.Data, code)
 }
 
 func (s *String) WriteContentType(w http.ResponseWriter) {
