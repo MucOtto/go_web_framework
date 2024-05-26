@@ -18,12 +18,12 @@ func (f *TextFormatter) Format(param *LoggingFormatterParam) string {
 		if param.Level == LevelError {
 			msgInfo = "\nError caused by:"
 		}
-		return fmt.Sprintf("%s [otto] %s %s%v%s | level= %s %s %s %s%s %#v %s \n",
+		return fmt.Sprintf("%s [otto] %s %s%v%s | level= %s %s %s %s%s %v %s \n",
 			yellow, reset, blue, now.Format("2006/01/02 - 15:04:05"), reset,
 			levelColor, param.Level.Level(), reset, msgInfo, msgColor, param.Msg, reset,
 		)
 	}
-	return fmt.Sprintf("[otto] %v | level=%s | msg= %#v \n",
+	return fmt.Sprintf("[otto] %v | level=%s | msg= %v \n",
 		now.Format("2006/01/02 - 15:04:05"),
 		param.Level.Level(), param.Msg,
 	)
