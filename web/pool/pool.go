@@ -31,9 +31,10 @@ type Pool struct {
 	//lock 去保护pool里面的相关资源的安全
 	lock sync.Mutex
 	//once 释放只能调用一次 不能多次调用
-	once        sync.Once
-	workerCache sync.Pool
-	cond        *sync.Cond
+	once         sync.Once
+	workerCache  sync.Pool
+	cond         *sync.Cond
+	PanicHandler func(any)
 }
 
 func NewPool(cap int, expire int) (p *Pool, err error) {

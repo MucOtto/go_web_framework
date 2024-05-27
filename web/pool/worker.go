@@ -1,6 +1,7 @@
 package pool
 
 import (
+	"github.com/MucOtto/web/log"
 	"sync/atomic"
 	"time"
 )
@@ -19,6 +20,17 @@ func (w *Worker) run() {
 }
 
 func (w *Worker) running() {
+	defer func() {
+		if err := recover(); err != nil {
+			atomic.AddInt32(&w.pool.running, -1)
+			w.pool.workerCache.Put(w)
+			if w.pool.PanicHandler != nil {
+				w.pool.PanicHandler(err)
+			} else {
+				log.Default().Error(err)
+			}
+		}
+	}()
 	for f := range w.task {
 		if f == nil {
 			atomic.AddInt32(&w.pool.running, -1)
