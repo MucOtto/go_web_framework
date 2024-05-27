@@ -2,6 +2,7 @@ package pool
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 )
@@ -32,10 +33,10 @@ type Pool struct {
 	//once 释放只能调用一次 不能多次调用
 	once        sync.Once
 	workerCache sync.Pool
+	cond        *sync.Cond
 }
 
 func NewPool(cap int, expire int) (p *Pool, err error) {
-	p = &Pool{}
 	if cap < 0 {
 		return nil, ErrorInValidCap
 	}
@@ -44,16 +45,18 @@ func NewPool(cap int, expire int) (p *Pool, err error) {
 		return nil, ErrorInValidExpire
 	}
 
-	p.cap = int32(cap)
-	p.expire = time.Duration(expire) * time.Second
-
+	p = &Pool{
+		cap:     int32(cap),
+		expire:  time.Duration(expire) * time.Second,
+		release: make(chan sig, 1),
+	}
 	p.workerCache.New = func() any {
 		return &Worker{
 			pool: p,
-			task: make(chan func(), 8),
+			task: make(chan func(), 1),
 		}
 	}
-
+	p.cond = sync.NewCond(&p.lock)
 	go p.expireWorker()
 	return p, nil
 }
@@ -94,27 +97,32 @@ func (p *Pool) GetWorker() *Worker {
 		return w
 	}
 	// 运行数量大于容量 阻塞
-	for {
-		p.lock.Lock()
-		idleWorkers := p.Workers
-		n := len(idleWorkers) - 1
-		if n < 0 {
-			p.lock.Unlock()
-			continue
-		}
-		w := idleWorkers[n]
-		idleWorkers[n] = nil
-		p.Workers = idleWorkers[:n]
+	return p.waitWorker()
+}
+
+func (p *Pool) waitWorker() *Worker {
+	p.lock.Lock()
+	p.cond.Wait()
+	fmt.Println("唤醒")
+	idleWorkers := p.Workers
+	n := len(idleWorkers) - 1
+	if n < 0 {
 		p.lock.Unlock()
-		return w
+		p.waitWorker()
 	}
+	w := idleWorkers[n]
+	idleWorkers[n] = nil
+	p.Workers = idleWorkers[:n]
+	p.lock.Unlock()
+	return w
 }
 
 func (p *Pool) PutWorker(w *Worker) {
 	w.lastTime = time.Now()
 	p.lock.Lock()
 	p.Workers = append(p.Workers, w)
-	p.lock.Unlock()
+	p.cond.Signal()
+	defer p.lock.Unlock()
 }
 
 func (p *Pool) Release() {
