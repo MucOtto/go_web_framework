@@ -21,11 +21,11 @@ func (w *Worker) run() {
 func (w *Worker) running() {
 	for f := range w.task {
 		if f == nil {
+			atomic.AddInt32(&w.pool.running, -1)
 			w.pool.workerCache.Put(w)
 			break
 		}
 		f()
 		w.pool.PutWorker(w)
-		atomic.AddInt32(&w.pool.running, -1)
 	}
 }

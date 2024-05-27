@@ -54,6 +54,7 @@ func NewPool(cap int, expire int) (p *Pool, err error) {
 		}
 	}
 
+	go p.expireWorker()
 	return p, nil
 }
 
@@ -143,24 +144,28 @@ func (p *Pool) Restart() bool {
 
 func (p *Pool) expireWorker() {
 	ticker := time.NewTicker(p.expire)
-	n := len(p.Workers) - 1
-	p.lock.Lock()
+	defer ticker.Stop()
+
 	for range ticker.C {
+		p.lock.Lock()
+
 		if len(p.release) > 0 {
+			p.lock.Unlock()
 			break
 		}
-		if n > 0 {
-			for i, worker := range p.Workers {
-				if time.Now().Sub(worker.lastTime) < p.expire {
-					// 先进先出 如果第一个都小于 后面的都小于
-					break
-				}
-				n = i
+
+		currentTime := time.Now()
+		i := 0
+		for i < len(p.Workers) {
+			if currentTime.Sub(p.Workers[i].lastTime) > p.expire {
+				worker := p.Workers[i]
 				worker.task <- nil
-				p.Workers[i] = nil
-				p.Workers = p.Workers[i+1:]
+				p.Workers = append(p.Workers[:i], p.Workers[i+1:]...)
+			} else {
+				i++
 			}
 		}
+
+		p.lock.Unlock()
 	}
-	p.lock.Unlock()
 }
