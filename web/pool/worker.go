@@ -29,6 +29,7 @@ func (w *Worker) running() {
 			} else {
 				log.Default().Error(err)
 			}
+			w.pool.PutWorker(w)
 		}
 	}()
 	for f := range w.task {
