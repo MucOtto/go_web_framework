@@ -54,7 +54,7 @@ func NewPool(cap int, expire int) (p *Pool, err error) {
 	p.workerCache.New = func() any {
 		return &Worker{
 			pool: p,
-			task: make(chan func(), 1),
+			task: make(chan func(), 10),
 		}
 	}
 	p.cond = sync.NewCond(&p.lock)
@@ -63,11 +63,16 @@ func NewPool(cap int, expire int) (p *Pool, err error) {
 }
 
 func (p *Pool) Submit(task func()) error {
+	//p.lock.Lock()
+	//defer p.lock.Unlock()
+
 	if len(p.release) > 0 {
 		return ErrorHasClosed
 	}
+
 	w := p.GetWorker()
 	w.task <- task
+
 	return nil
 }
 
